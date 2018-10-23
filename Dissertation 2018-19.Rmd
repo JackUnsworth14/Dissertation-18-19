@@ -1,0 +1,85 @@
+---
+title: "Dissertation 2018-19"
+author: "Jack Unsworth"
+date: "18 October 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, include = T)
+```
+
+We use data from http://www.football-data.co.uk/englandm.php, this is updated weekly
+The descriptions of variables are in the file http://www.football-data.co.uk/notes.txt
+
+Loading packages required for the analysis:
+
+```{r, include = FALSE}
+# install.packages("devtools")
+library(devtools)
+# install.packages('ggplot2')
+library(ggplot2)
+```
+
+Set the working directory, load in the data and combine it into one data frame:
+
+```{r}
+PL1516 <- read.csv('PL1516.csv')  # Loading Data
+PL1617 <- read.csv('PL1617.csv')
+PL1718 <- read.csv('PL1718.csv')
+PL1819 <- read.csv('PL1819.csv')
+PL <- rbind(PL1516,PL1617,PL1718,PL1819)
+```
+
+Data Analysis
+
+We first look at the distribution of home and away goals, plot these and run a t test for differences:
+
+```{r}
+
+mean(PL$FTHG)  # We see the home and away goals are different values by a significant amount
+mean(PL$FTAG)
+
+par(mfrow = c(2,1))  # Changes number of graphs on plot
+barplot(prop.table(table(PL$FTHG)), main = 'Home Goals', xlab = 'Goals', ylab = 'Frequency', ylim = c(0,0.4))
+barplot(prop.table(table(PL$FTAG)), main = 'Away Goals', xlab = 'Goals', ylab = 'Frequency', ylim = c(0,0.4))
+par(mfrow = c(1,1))
+
+t.test(PL$FTHG,PL$FTAG,var.equal = FALSE)  # This gives statistical evidence of home advantage
+```
+
+
+Independent Poisson Model:
+
+```{r, Include = T}
+poisson_model <- 
+  rbind(
+    data.frame(goals=PL$FTHG,
+               team=PL$HomeTeam,
+               opponent=PL$AwayTeam,
+               home=1),
+    data.frame(goals=PL$FTAG,
+               team=PL$AwayTeam,
+               opponent=PL$HomeTeam,
+               home=0)) 
+  
+Mod1 <- glm(goals ~ home + team + opponent, family=poisson(link=log), data=poisson_model)
+```
+
+
+There are two wrapper functions in seperate files. One takes in a model and fixtures and returns the predicted results, this is called 'Predict1'. The second takes in a model and returns the premier league table according to the model prediction for all matches int he season up to the current date, excluding week 1 which currently must be included within the training data to avoid new levels in the model causing issues.This second function is called 'LeagueTablePredict'.
+
+The two functions are demonstrated below using the poisson linear model and in the first, data from game week 8 of the Premier League 2018/19.
+
+```{r, include = T}
+source("Predict1.R")
+source("LeagueTablePredict.R") 
+
+FixturesGW8 <- data.frame( Team = c('Brighton','Crystal Palace','Leicester','Man United','Southampton','Burnley','Watford','Tottenham','Fulham','Liverpool'), Opponent = c('West Ham','Wolves','Everton','Newcastle','Chelsea','Huddersfield','Bournemouth','Cardiff','Arsenal','Man City') )  # Home teams go first
+
+FixturesGW9 <- data.frame( Team = c('Chelsea','West Ham','Newcastle','Bournemouth','Cardiff','Wolves','Man City','Huddersfield','Everton','Arsenal'), Opponent = c('Man United','Tottenham','Brighton','Southampton','Fulham','Watford','Burnley','Liverpool','Crystal Palace', 'Leicester') )
+
+Predict1(FixturesGW9,Mod1)
+LeagueTablePredict(Mod1)
+
+```
